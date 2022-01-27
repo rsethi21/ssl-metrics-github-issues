@@ -1,3 +1,4 @@
+import json
 from argparse import ArgumentParser, Namespace
 from collections import KeysView  # had to import this
 from datetime import datetime
@@ -10,6 +11,8 @@ from dateutil.parser import parse
 from intervaltree import IntervalTree
 from matplotlib.figure import Figure
 from progress.spinner import MoonSpinner
+import pandas
+from pandas import DataFrame
 
 
 def getArgparse() -> Namespace:
@@ -72,24 +75,23 @@ def getArgparse() -> Namespace:
     return parser.parse_args()
 
 
-def loadJSON(filename: str) -> list:
+def loadJSON(filename: str):
     try:
         with open(file=filename, mode="r") as jsonFile:
-            return load(jsonFile)
+            df: DataFrame = pandas.read_json(jsonFile)
+            return json.loads(df.T.to_json())
     except FileExistsError:
         print(f"{filename} does not exist.")
         quit(1)
 
 
-def createIntervalTree(data: list, filename: str) -> IntervalTree:
+def createIntervalTree(data: dict, filename: str) -> IntervalTree:
     tree: IntervalTree = IntervalTree()
-    # day0: datetime = parse(data[0]["created_at"]).replace(tzinfo=None)
-
     with MoonSpinner(f"Creating interval tree from {filename}... ") as pb:
         issue: dict
-        for issue in data:
-            begin: int = issue["created_at_day"]
-            end: int = issue["closed_at_day"]
+        for issue in data.values():
+            begin: int = issue["day_opened"]
+            end: int = issue["day_closed"]
 
             try:
                 issue["endDayOffset"] = 0
@@ -104,7 +106,7 @@ def createIntervalTree(data: list, filename: str) -> IntervalTree:
 
 
 def issue_spoilage_data(
-    data: IntervalTree,
+        data: IntervalTree,
 ):
     # startDay: int = data.begin()
     endDay: int = data.end()
@@ -145,8 +147,9 @@ def issue_spoilage_data(
             )
     return list_of_spoilage_values
 
+
 def shrink_graph(
-  keys=None
+        keys=None
 ):
     args: Namespace = getArgparse()
     if args.upper_window_bound != None:
@@ -158,9 +161,10 @@ def shrink_graph(
         if args.lower_window_bound != None:
             plt.xlim(args.lower_window_bound, len(keys))
 
+
 def plot_IssueSpoilagePerDay(
-    pregeneratedData: list,
-    filename: str,
+        pregeneratedData: list,
+        filename: str,
 ):
     figure: Figure = plt.figure()
 
@@ -186,8 +190,8 @@ def plot_IssueSpoilagePerDay(
 
 
 def plot_OpenIssuesPerDay_Line(
-    pregeneratedData: dict = None,
-    filename: str = "open_issues_per_day_line.png",
+        pregeneratedData: dict = None,
+        filename: str = "open_issues_per_day_line.png",
 ):
     figure: Figure = plt.figure()
 
@@ -205,8 +209,8 @@ def plot_OpenIssuesPerDay_Line(
 
 
 def plot_ClosedIssuesPerDay_Line(
-    pregeneratedData: dict = None,
-    filename: str = "closed_issues_per_day_line.png",
+        pregeneratedData: dict = None,
+        filename: str = "closed_issues_per_day_line.png",
 ):
     figure: Figure = plt.figure()
 
@@ -231,10 +235,10 @@ def plot_ClosedIssuesPerDay_Line(
 
 
 def plot_OpenClosedSpoiledIssuesPerDay_Line(
-    pregeneratedData_OpenIssues: dict = None,
-    pregeneratedData_ClosedIssues: dict = None,
-    pregeneratedData_SpoiledIssues: list = None,
-    filename: str = "open_closed_issues_per_day_line.png",
+        pregeneratedData_OpenIssues: dict = None,
+        pregeneratedData_ClosedIssues: dict = None,
+        pregeneratedData_SpoiledIssues: list = None,
+        filename: str = "open_closed_issues_per_day_line.png",
 ):
     figure: Figure = plt.figure()
 
@@ -265,7 +269,7 @@ def plot_OpenClosedSpoiledIssuesPerDay_Line(
 
 
 def fillDictBasedOnKeyValue(
-    dictionary: dict, tree: IntervalTree, key: str, value: Any
+        dictionary: dict, tree: IntervalTree, key: str, value: Any
 ) -> dict:
     data: dict = {}
     keys: KeysView = dictionary.keys()
@@ -274,7 +278,7 @@ def fillDictBasedOnKeyValue(
     minKeyValue: int = min(keys)
 
     with MoonSpinner(
-        f'Getting the total number of "{key} = {value}" issues per day... '
+            f'Getting the total number of "{key} = {value}" issues per day... '
     ) as pb:
         for x in range(minKeyValue, maxKeyValue):
             try:
@@ -290,6 +294,7 @@ def fillDictBasedOnKeyValue(
             pb.next()
 
     return data
+
 
 # def derivative(
 #     x_values=None,
@@ -312,7 +317,7 @@ def main() -> None:
         print("Invalid input file type. Input file must be JSON")
         quit(1)
 
-    jsonData: list = loadJSON(filename=args.input)
+    jsonData: dict = loadJSON(filename=args.input)
 
     tree: IntervalTree = createIntervalTree(data=jsonData, filename=args.input)
 
